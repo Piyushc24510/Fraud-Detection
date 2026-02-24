@@ -28,7 +28,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "your-secret-key-here-change-it-in
 # ==========================================
 # DATABASE SETUP
 # ==========================================
-DATABASE = 'fraud_detection.db'
+DATABASE = '/tmp/fraud_detection.db'
 
 def get_db():
     """Get database connection"""
@@ -224,22 +224,40 @@ def send_registration_email(username, name, role):
 # ==========================================
 # LOAD ML MODEL
 # ==========================================
-try:
-    model = pickle.load(open("model.pkl", "rb"))
-    vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
-    print("✅ ML Model loaded successfully")
-except:
+def load_model():
+    """Load model from multiple possible locations"""
+    search_paths = [
+        ("model.pkl", "vectorizer.pkl"),
+        ("/tmp/model.pkl", "/tmp/vectorizer.pkl"),
+    ]
+    for model_path, vec_path in search_paths:
+        try:
+            m = pickle.load(open(model_path, "rb"))
+            v = pickle.load(open(vec_path, "rb"))
+            print(f"✅ ML Model loaded from {model_path}")
+            return m, v
+        except Exception:
+            continue
     print("⚠️ Model not found - run train_model.py first")
-    model = None
-    vectorizer = None
+    return None, None
 
-# NLTK Setup
+model, vectorizer = load_model()
+
+# NLTK Setup — download to /tmp for Vercel compatibility
+import nltk as _nltk
+_nltk.data.path.append("/tmp/nltk_data")
+for _pkg in ['punkt', 'stopwords', 'vader_lexicon', 'averaged_perceptron_tagger']:
+    try:
+        _nltk.download(_pkg, download_dir="/tmp/nltk_data", quiet=True)
+    except Exception:
+        pass
+
 try:
     stemmer = PorterStemmer()
     stop_words = set(stopwords.words('english'))
     sia = SentimentIntensityAnalyzer()
-except:
-    print("⚠️ NLTK data not found")
+except Exception as _e:
+    print(f"⚠️ NLTK data not found: {_e}")
 
 # ==========================================
 # ROUTES
